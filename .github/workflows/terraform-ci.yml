@@ -1,0 +1,80 @@
+# .github/workflows/terraform-ci.yml
+#
+# What this teaches (CV0-004 Domain 5.2 — CI/CD pipeline concepts):
+#   - "Code integration" -> the fmt/validate steps that run on every push
+#   - "Testing"           -> terraform validate acts as your automated test
+#   - "Build"             -> terraform plan is the "build" artifact — it shows
+#                            exactly what WOULD change, without touching AWS
+#   - "Security"          -> no AWS credentials are used until the plan job,
+#                            and only on pushes to main (not on every PR)
+
+name: Terraform CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # ---- Job 1: runs on every push AND every pull request ----
+  # No AWS credentials needed here — this is pure "does the code make sense" checking.
+  validate:
+    name: Format & Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      # Checks that your .tf files follow standard formatting.
+      # Fails the pipeline (loudly) if someone forgets terraform fmt locally.
+      - name: Terraform fmt check
+        run: terraform fmt -check -recursive
+
+      # -backend=false means "don't try to talk to any real state backend,
+      # I just want to know the syntax and provider config are valid."
+      - name: Terraform init (no backend)
+        run: terraform init -backend=false
+
+      # This is your automated "test" — catches broken syntax, missing
+      # required arguments, type mismatches, etc. before a human ever looks.
+      - name: Terraform validate
+        run: terraform validate
+
+  # ---- Job 2: only runs on pushes to main, AFTER validate passes ----
+  # This is where real AWS credentials come in — restricted on purpose.
+  plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # Store these under Settings > Secrets and variables > Actions in your repo.
+      # Use the least-privilege IAM user pattern you already built for Project 5 —
+      # a plan-only role needs read access, not the full pipeline's write access.
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1   # change to match your lab region
+
+      - name: Terraform init
+        run: terraform init
+
+      # Plan only — this pipeline never auto-applies. Reviewing the plan
+      # output before running `terraform apply` by hand is a deliberate
+      # safety choice, not a missing feature.
+      - name: Terraform plan
+        run: terraform plan -no-color
