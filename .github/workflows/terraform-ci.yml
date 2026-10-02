@@ -78,3 +78,28 @@ jobs:
       # safety choice, not a missing feature.
       - name: Terraform plan
         run: terraform plan -no-color
+  apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    needs: plan       # which job must succeed first?
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production   # the name you gave the environment in Settings
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Terraform init
+        run: terraform init
+
+      - name: Terraform apply
+        run: terraform apply -auto-approve    # what flag skips the interactive yes/no prompt?
