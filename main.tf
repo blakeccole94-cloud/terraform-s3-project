@@ -42,3 +42,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "project6_lifecycle" {
     }
   }
 }
+terraform {
+  backend "s3" {
+    bucket = "cloud-plus-blake-lab"
+    key    = "project6/terraform.tfstate"
+    region = "us-east-1"
+  }
+}
