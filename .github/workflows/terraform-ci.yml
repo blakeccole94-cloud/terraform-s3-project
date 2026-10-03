@@ -83,7 +83,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: plan       # which job must succeed first?
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: production   # the name you gave the environment in Settings
+    environment: Production   # the name you gave the environment in Settings
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
